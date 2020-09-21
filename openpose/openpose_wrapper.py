@@ -484,24 +484,6 @@ class OpenPoseWrapper:
         self._is_stereo_calibrated = True
 
 
-    def update_pose_estimation_from_data(self) -> None:
-        """
-        Update the pose estimation from the readings from cameras
-        """
-        while self._op_continue:
-
-            self._op_lock.acquire()
-
-            for camera in self._cameras:
-                camera.pose = self.data[self.data_index]
-
-            self.data_index += 1
-            self.data_index %= self.data_len
-
-            self._op_last_update = time()
-            self._op_lock.release()
-
-
     def update_pose_estimation(self) -> None:
         """
         Update the pose estimation from the readings from cameras
@@ -730,6 +712,18 @@ class OpenPoseWrapper:
             bm.to_mesh(obj.data)
             bm.free()
 
+    def init_data(self, scene):
+        # TODO: For testing purpose
+        # move bones in function of OpenPose keypoints
+        # Here we assume that we only have that one armature
+        self.active_armature = next((obj for obj in scene.objects if obj.type == "ARMATURE" and obj.openpose_active), None)
+
+        arm_matrix_world = self.active_armature.matrix_world
+        self.bone_tail_world_co = {}
+        for bone in self.active_armature.pose.bones:
+            bone_world_co = arm_matrix_world @ bone.head
+            self.bone_tail_world_co[bone.name] = bone_world_co.copy()
+
     @persistent
     def update(self, scene, *args, **kwargs) -> None:
         pose_3D: Optional[np.array] = None
@@ -739,46 +733,41 @@ class OpenPoseWrapper:
                 self.calibrate_stereo_pair()
                 self.display_cameras()
         else:
-            self.store_camera_calibration()
-
-            if self._op_thread is None:
-                self._op_continue = True
-                if self.update_from_data:
-                    self._op_thread = Thread(target=self.update_pose_estimation_from_data)
-                else:
-                    self._op_thread = Thread(target=self.update_pose_estimation)
-                self._op_thread.daemon = True
-                self._op_thread.start()
-
-            self._op_lock.acquire()
-            if self._op_last_update is None or self._last_update == self._op_last_update:
-                self._op_lock.release()
-                return {'FINISHED'}
-            self._last_update = self._op_last_update
-
             if not self.update_from_data:
-                self.display_cameras()
+                self.store_camera_calibration()
 
-            # verify that the pose is detected for each camera
-            for camera in self._cameras:
-                if np.mean(camera.pose[:, 2]) < self._detection_threshold:
+                if self._op_thread is None:
+                    self._op_continue = True
+                    self._op_thread = Thread(target=self.update_pose_estimation)
+                    self._op_thread.daemon = True
+                    self._op_thread.start()
+
+                self._op_lock.acquire()
+                if self._op_last_update is None or self._last_update == self._op_last_update:
                     self._op_lock.release()
                     return {'FINISHED'}
+                self._last_update = self._op_last_update
 
-            if self._is_stereo:
-                pose_3D = self.triangulate_pose_points()
-                self._op_lock.release()
-                if self._show_debug_objects:
-                    self.display_face_3D_points(pose_3D)
-                if self._show_debug_mesh:
-                    self.display_raw_mesh(pose_3D)
-            else:
-                self._op_lock.release()
+                if not self.update_from_data:
+                    self.display_cameras()
 
-            # TODO: For testing purpose
-            # move bones in function of OpenPose keypoints
-            # Here we assume that we only have that one armature
-            active_armature = next((obj for obj in scene.objects if obj.type == "ARMATURE" and obj.openpose_active), None)
+                # verify that the pose is detected for each camera
+                for camera in self._cameras:
+                    if np.mean(camera.pose[:, 2]) < self._detection_threshold:
+                        self._op_lock.release()
+                        return {'FINISHED'}
+
+                if self._is_stereo:
+                    pose_3D = self.triangulate_pose_points()
+                    self._op_lock.release()
+                    if self._show_debug_objects:
+                        self.display_face_3D_points(pose_3D)
+                    if self._show_debug_mesh:
+                        self.display_raw_mesh(pose_3D)
+                else:
+                    self._op_lock.release()
+
+            active_armature = self.active_armature
 
             # verify that we have a pose armature
             if not active_armature:
@@ -792,6 +781,7 @@ class OpenPoseWrapper:
 
             keypoint = []
             free_bones = ["eye", "eyelid", "eyebrow", "chin", "lip", "upper_lip", "lower_lip", "neck", "shoulder", "nose", "nostril", "jawline", "elbow", "ear", "wrist", "hip", "knee", "ankle"]
+
             if self._only_body:
                 if bpy.data.armatures["Armature"].display_type == "OCTAHEDRAL":  # here we assume that the name of the current armature is "Armature"
                     for bone in active_armature.pose.bones:
@@ -855,7 +845,7 @@ class OpenPoseWrapper:
                                     bone_current_rotation = active_armature.data.bones[bone.name].matrix_local.to_quaternion()
                                     local_rotation = (arm_matrix_world @ active_armature.data.bones["nose_apex"].matrix.to_4x4() @ (active_armature.data.bones[bone.name].matrix.to_4x4()).inverted() @ Vector((keypoint.angle_vector[0], 0, keypoint.angle_vector[2]))).to_track_quat("Y", "Z")
                                     bone.matrix = Matrix.Translation((keypoint.x, keypoint.y, keypoint.z)) @ (bone_current_rotation @ local_rotation).to_matrix().to_4x4()
-    
+
             return {'FINISHED'}
 
     # Centers the armature at the origin of the world
@@ -872,7 +862,9 @@ class OpenPoseWrapper:
     def normalize_pixels(self, array: np.array, index: int) -> np.array:
         # points are recentered from the center of the frame and normalized by the image length * scale_factor, a rotation is applied
         rows, cols, channels = self._cameras[index].shape
-        scale_factor = 50.0
+        rows, cols = 640, 640
+        #scale_factor = 50.0
+        scale_factor = 5.0
         row_origin = floor(rows / 2)
         col_origin = floor(cols / 2)
         new_array = np.empty((0, 3))
@@ -974,15 +966,81 @@ class OpenPoseWrapper:
             "jawline_8.l": Keypoint(x=pose[0][0], y=pose[0][1], z=pose[0][2], accuracy=pose[0][3])
             }
 
+    def get_point_ids_by_name(self):
+        return {
+        # face keypoints
+        "eyebrow_start.l": 21,
+        "eyebrow_middle.l": 19,
+        "eyebrow_end.l": 17,
+        "eyebrow_start.r": 22,
+        "eyebrow_middle.r": 24,
+        "eyebrow_end.r": 26,
+        "eye_pupil.l": 68,
+        "eye_outer_corner.l": 36,
+        "eye_inner_corner.l": 39,
+        "eye_pupil.r": 69,
+        "eye_outer_corner.r": 45,
+        "eye_inner_corner.r": 42,
+        "lip_corner.l": 48,
+        "lip_corner.r": 54,
+        "upper_lip_center": 51,
+        "lower_lip_side.l": 58,
+        "lower_lip_side.r": 56,
+        "upper_lip_side.l": 50,
+        "upper_lip_side.r": 52,
+        "eye_inner_top_side.l": 38,
+        "eye_inner_top_side.r": 43,
+        "eye_outer_top_side.l": 37,
+        "eye_outer_top_side.r": 44,
+        "eye_inner_bottom_side.l": 40,
+        "eye_inner_bottom_side.r": 47,
+        "eye_outer_bottom_side.l": 41,
+        "eye_outer_bottom_side.r":  46,
+        "chin": 8,
+        "nose_apex": 33,
+        "nose_side.l": 31,
+        "nose_side.r": 35,
+        "nostril.l": 32,
+        "nostril.r": 34,
+        "nose_bridge_1": 30,
+        "nose_bridge_2": 29,
+        "nose_bridge_3": 28,
+        "nose_bridge_4": 27,
+        "jawline_1.r": 9,
+        "jawline_2.r": 10,
+        "jawline_3.r": 11,
+         "jawline_4.r": 12,
+        "jawline_5.r": 13,
+        "jawline_6.r": 14,
+        "jawline_7.r": 15,
+        "jawline_8.r": 16,
+        "jawline_1.l": 7,
+        "jawline_2.l": 6,
+        "jawline_3.l": 5,
+        "jawline_4.l": 4,
+        "jawline_5.l": 3,
+        "jawline_6.l": 2,
+        "jawline_7.l": 1,
+        "jawline_8.l": 0
+        }
+
     def get_pose(self, pose_3D: Optional[np.array], index: int = 0) -> Dict[str, Keypoint]:
         if index > len(self._cameras) - 1:
             return {}
 
-        pose = self._cameras[index].pose
+        if self.update_from_data:
+            pose = self.data[self.data_index]
+            self.data_index += 1
+            self.data_index %= self.data_len
+        else:
+            pose = self._cameras[index].pose
 
         if pose_3D is None:
             pose = self.add_z_coordinate(pose)
             pose = self.normalize_pixels(pose, index)
+            for name, idx in self.get_point_ids_by_name().items():
+                if name in self.bone_tail_world_co:
+                    pose[idx, 1] = self.bone_tail_world_co[name].y
         else:
             pose = np.insert(pose_3D, 3, values=pose[:, 2], axis=1)
 
@@ -992,3 +1050,4 @@ class OpenPoseWrapper:
                               z=keypoints[key].z,
                               accuracy=keypoints[key].accuracy,
                               angle_vector=keypoints[key].angle_vector) for key in keypoints}
+

@@ -31,7 +31,7 @@ class OpenPosePropertiesPanel(bpy.types.Panel):
     bpy.types.Object.openpose_filepath = bpy.props.StringProperty(
         name="OpenPose file path",
         description="Load OpenPose keypoints from file",
-        default="/home/vlarine/work/Animation/moface/assets/op_keypoints.tsv",
+        default="./assets/op_keypoints.tsv",
         maxlen= 1024,
         subtype='FILE_PATH'
     )

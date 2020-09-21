@@ -97,6 +97,9 @@ class LoadFile(bpy.types.Operator):
                 LoadFile.wrapper.data_len = data.shape[0]
                 LoadFile.wrapper.update_from_data = True
 
+                context.scene.frame_end = data.shape[0]
+                LoadFile.wrapper.init_data(context.scene)
+
                 LoadFile.wrapper.start()
             if LoadFile.wrapper.update not in bpy.app.handlers.frame_change_pre:
                 bpy.app.handlers.frame_change_pre.append(LoadFile.wrapper.update)
@@ -115,8 +118,8 @@ class LoadFile(bpy.types.Operator):
                 for line in f:
                     arr = [float(x) for x in line.strip().split('\t')]
                     frame = []
-                    for i in range(int(len(arr) / 2)):
-                        frame.append([arr[i * 2], arr[i * 2 + 1], 1.0])
+                    for i in range(int(len(arr) / 3)):
+                        frame.append([arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]])
                     data.append(frame)
             data = np.array(data)
             LoadFile.update_state(context)

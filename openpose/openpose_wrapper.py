@@ -718,12 +718,6 @@ class OpenPoseWrapper:
         # Here we assume that we only have that one armature
         self.active_armature = next((obj for obj in scene.objects if obj.type == "ARMATURE" and obj.openpose_active), None)
 
-        arm_matrix_world = self.active_armature.matrix_world
-        self.bone_tail_world_co = {}
-        for bone in self.active_armature.pose.bones:
-            bone_world_co = arm_matrix_world @ bone.head
-            self.bone_tail_world_co[bone.name] = bone_world_co.copy()
-
     @persistent
     def update(self, scene, *args, **kwargs) -> None:
         pose_3D: Optional[np.array] = None
@@ -807,8 +801,22 @@ class OpenPoseWrapper:
                                 bone.matrix = Matrix.Translation((keypoint.x, keypoint.y, keypoint.z)) @ (bone_current_rotation @ local_rotation).to_matrix().to_4x4()
             else:
                 if bpy.data.armatures["Armature"].display_type == "STICK":  # here we assume that the name of the current armature is "Armature"
+                    def move_bone(name):
+                        world_co = arm_matrix_world @ active_armature.pose.bones[name].head
+                        world_co.x = bl_keypoints[name].x
+                        world_co.z = bl_keypoints[name].z
+                        local_co = arm_matrix_world.inverted() @ world_co
+                        new_mat = active_armature.data.bones[name].matrix.to_4x4().copy()
+                        new_mat[0][3] = local_co.x
+                        new_mat[1][3] = local_co.y
+                        new_mat[2][3] = local_co.z
+                        active_armature.pose.bones[name].matrix = new_mat
+
                     # move the control bone  -> chin if accuracy is sufficiently high
-                    active_armature.pose.bones["nose_apex"].matrix = arm_matrix_world.inverted() @ Matrix.Translation((bl_keypoints["nose_apex"].x, bl_keypoints["nose_apex"].y, bl_keypoints["nose_apex"].z))@ active_armature.data.bones["nose_apex"].matrix.to_quaternion().to_matrix().to_4x4()
+                    if self.update_from_data:
+                        move_bone('nose_apex')
+                    else:
+                        active_armature.pose.bones["nose_apex"].matrix = arm_matrix_world.inverted() @ Matrix.Translation((bl_keypoints["nose_apex"].x, bl_keypoints["nose_apex"].y, bl_keypoints["nose_apex"].z))@ active_armature.data.bones["nose_apex"].matrix.to_quaternion().to_matrix().to_4x4()
                    # move the free bones
                     for bone in active_armature.pose.bones:
                         # check if it is a "movable bone"
@@ -816,7 +824,10 @@ class OpenPoseWrapper:
                             keypoint = bl_keypoints[bone.name]
                             # update the bone location only if the accuracy is sufficiently high
                             if keypoint.accuracy > self._detection_threshold:
-                                active_armature.pose.bones[bone.name].matrix = arm_matrix_world.inverted() @Matrix.Translation((bl_keypoints[bone.name].x, bl_keypoints[bone.name].y, bl_keypoints[bone.name].z))@ active_armature.data.bones[bone.name].matrix.to_quaternion().to_matrix().to_4x4()
+                                if self.update_from_data:
+                                    move_bone(bone.name)
+                                else:
+                                    active_armature.pose.bones[bone.name].matrix = arm_matrix_world.inverted() @Matrix.Translation((bl_keypoints[bone.name].x, bl_keypoints[bone.name].y, bl_keypoints[bone.name].z))@ active_armature.data.bones[bone.name].matrix.to_quaternion().to_matrix().to_4x4()
                 else:
                     # move the control bone  -> chin if accuracy is sufficiently high
                     if bl_keypoints["nose_apex"].accuracy > self._detection_threshold:
@@ -864,7 +875,7 @@ class OpenPoseWrapper:
         rows, cols, channels = self._cameras[index].shape
         rows, cols = 640, 640
         #scale_factor = 50.0
-        scale_factor = 5.0
+        scale_factor = 3.0
         row_origin = floor(rows / 2)
         col_origin = floor(cols / 2)
         new_array = np.empty((0, 3))
@@ -966,81 +977,19 @@ class OpenPoseWrapper:
             "jawline_8.l": Keypoint(x=pose[0][0], y=pose[0][1], z=pose[0][2], accuracy=pose[0][3])
             }
 
-    def get_point_ids_by_name(self):
-        return {
-        # face keypoints
-        "eyebrow_start.l": 21,
-        "eyebrow_middle.l": 19,
-        "eyebrow_end.l": 17,
-        "eyebrow_start.r": 22,
-        "eyebrow_middle.r": 24,
-        "eyebrow_end.r": 26,
-        "eye_pupil.l": 68,
-        "eye_outer_corner.l": 36,
-        "eye_inner_corner.l": 39,
-        "eye_pupil.r": 69,
-        "eye_outer_corner.r": 45,
-        "eye_inner_corner.r": 42,
-        "lip_corner.l": 48,
-        "lip_corner.r": 54,
-        "upper_lip_center": 51,
-        "lower_lip_side.l": 58,
-        "lower_lip_side.r": 56,
-        "upper_lip_side.l": 50,
-        "upper_lip_side.r": 52,
-        "eye_inner_top_side.l": 38,
-        "eye_inner_top_side.r": 43,
-        "eye_outer_top_side.l": 37,
-        "eye_outer_top_side.r": 44,
-        "eye_inner_bottom_side.l": 40,
-        "eye_inner_bottom_side.r": 47,
-        "eye_outer_bottom_side.l": 41,
-        "eye_outer_bottom_side.r":  46,
-        "chin": 8,
-        "nose_apex": 33,
-        "nose_side.l": 31,
-        "nose_side.r": 35,
-        "nostril.l": 32,
-        "nostril.r": 34,
-        "nose_bridge_1": 30,
-        "nose_bridge_2": 29,
-        "nose_bridge_3": 28,
-        "nose_bridge_4": 27,
-        "jawline_1.r": 9,
-        "jawline_2.r": 10,
-        "jawline_3.r": 11,
-         "jawline_4.r": 12,
-        "jawline_5.r": 13,
-        "jawline_6.r": 14,
-        "jawline_7.r": 15,
-        "jawline_8.r": 16,
-        "jawline_1.l": 7,
-        "jawline_2.l": 6,
-        "jawline_3.l": 5,
-        "jawline_4.l": 4,
-        "jawline_5.l": 3,
-        "jawline_6.l": 2,
-        "jawline_7.l": 1,
-        "jawline_8.l": 0
-        }
-
     def get_pose(self, pose_3D: Optional[np.array], index: int = 0) -> Dict[str, Keypoint]:
         if index > len(self._cameras) - 1:
             return {}
 
         if self.update_from_data:
-            pose = self.data[self.data_index]
-            self.data_index += 1
-            self.data_index %= self.data_len
+            idx = (bpy.context.scene.frame_current - 1) % self.data_len
+            pose = self.data[idx]
         else:
             pose = self._cameras[index].pose
 
         if pose_3D is None:
             pose = self.add_z_coordinate(pose)
             pose = self.normalize_pixels(pose, index)
-            for name, idx in self.get_point_ids_by_name().items():
-                if name in self.bone_tail_world_co:
-                    pose[idx, 1] = self.bone_tail_world_co[name].y
         else:
             pose = np.insert(pose_3D, 3, values=pose[:, 2], axis=1)
 

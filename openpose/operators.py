@@ -93,7 +93,6 @@ class LoadFile(bpy.types.Operator):
                 LoadFile.wrapper = openpose_wrapper.OpenPoseWrapper()
 
                 LoadFile.wrapper.data = data
-                LoadFile.wrapper.data_index = 0
                 LoadFile.wrapper.data_len = data.shape[0]
                 LoadFile.wrapper.update_from_data = True
 

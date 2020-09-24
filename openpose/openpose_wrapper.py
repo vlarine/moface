@@ -31,9 +31,11 @@ from typing import Dict, List, Optional, Tuple
 try:
     sys.path.insert(0, '/usr/local/python')  # PyOpenPose is installed in this directory by default
     import pyopenpose as op
+    USE_OPENPOSE = True
 except ImportError as e:
     print('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake of OpenPose and installed it?')
-    raise e
+    USE_OPENPOSE = False
+    #raise e
 
 OPENPOSE_ROOT = os.environ["OPENPOSE_ROOT"]
 addonName = os.path.basename(os.path.dirname(__file__))
@@ -171,7 +173,7 @@ class OpenPoseWrapper:
         self._last_update: Optional[float] = None
 
         self._op_last_update: Optional[float] = None
-        self._op: Optional[op.OpenPose] = None
+        self._op = None
         self._op_continue = False
         self._op_thread: Optional[Thread] = None
         self._op_lock = Lock()
@@ -488,6 +490,9 @@ class OpenPoseWrapper:
         """
         Update the pose estimation from the readings from cameras
         """
+        if not USE_OPENPOSE:
+            return
+
         def grab_camera(camera: Camera) -> None:
             camera.grab()
 

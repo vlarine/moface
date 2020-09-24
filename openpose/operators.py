@@ -81,33 +81,22 @@ class LoadFile(bpy.types.Operator):
     bl_label = "Load openpose kyepoints from file"
     wrapper: openpose_wrapper.OpenPoseWrapper = None
 
-    def update_state(context):
-        if context.scene.openpose.state:
-            context.scene.openpose.state = False
-        else:
-            context.scene.openpose.state = True
-
     def activate_openpose(context, data):
-        if context.scene.openpose.state:
-            if not LoadFile.wrapper:
-                LoadFile.wrapper = openpose_wrapper.OpenPoseWrapper()
+        if not LoadFile.wrapper:
+            LoadFile.wrapper = openpose_wrapper.OpenPoseWrapper()
 
-                LoadFile.wrapper.data = data
-                LoadFile.wrapper.data_len = data.shape[0]
-                LoadFile.wrapper.update_from_data = True
+        LoadFile.wrapper.stop()
+        LoadFile.wrapper.data = data
+        LoadFile.wrapper.data_len = data.shape[0]
+        LoadFile.wrapper.update_from_data = True
 
-                context.scene.frame_end = data.shape[0]
-                LoadFile.wrapper.init_data(context.scene)
+        context.scene.frame_end = data.shape[0]
+        LoadFile.wrapper.init_data(context.scene)
 
-                LoadFile.wrapper.start()
-            if LoadFile.wrapper.update not in bpy.app.handlers.frame_change_pre:
-                bpy.app.handlers.frame_change_pre.append(LoadFile.wrapper.update)
-        else:
-            if LoadFile.wrapper.update in bpy.app.handlers.frame_change_pre:
-                bpy.app.handlers.frame_change_pre.remove(LoadFile.wrapper.update)
-            LoadFile.wrapper.stop()
-            # Here the wrapper should be destroyed, once PyOpenPose provides the API.
-            # LoadFile.wrapper = None
+        LoadFile.wrapper.start()
+
+        if LoadFile.wrapper.update not in bpy.app.handlers.frame_change_pre:
+            bpy.app.handlers.frame_change_pre.append(LoadFile.wrapper.update)
 
     def execute(self, context) -> set:
         openpose_filepath = context.object.openpose_filepath
@@ -121,7 +110,7 @@ class LoadFile(bpy.types.Operator):
                         frame.append([arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]])
                     data.append(frame)
             data = np.array(data)
-            LoadFile.update_state(context)
+            bpy.ops.screen.animation_cancel()
             LoadFile.activate_openpose(context, data)
             bpy.ops.screen.animation_play()
 

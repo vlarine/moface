@@ -12,8 +12,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import bpy
+import sys
 from typing import Optional
 from . import operators
+
+# Import OpenPose
+try:
+    sys.path.insert(0, '/usr/local/python')  # PyOpenPose is installed in this directory by default
+    import pyopenpose as op
+    USE_OPENPOSE = True
+except ImportError as e:
+    print('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake of OpenPose and installed it?')
+    USE_OPENPOSE = False
+    #raise e
 
 class OpenPosePropertiesPanel(bpy.types.Panel):
     bl_space_type = "PROPERTIES"
@@ -29,7 +40,7 @@ class OpenPosePropertiesPanel(bpy.types.Panel):
     )
 
     bpy.types.Object.openpose_filepath = bpy.props.StringProperty(
-        name="OpenPose file path",
+        name=".tsv file",
         description="Load OpenPose keypoints from file",
         default="./assets/op_keypoints.tsv",
         maxlen= 1024,
@@ -48,16 +59,19 @@ class OpenPosePropertiesPanel(bpy.types.Panel):
     def draw(self, context) -> None:
         layout = self.layout
         main_col = layout.column(align=True)
-        row = main_col.row(align=True)
-        row.operator("openpose.activate_and_run", text="Stop OpenPose" if context.scene.openpose.state else "Start OpenPose v0.2")
-        row = main_col.row(align=True)
-        row.operator("openpose.reset_calibration", text="Reset calibration")
-        row.operator("openpose.save_userpref", text="Save calibration")
 
+        if USE_OPENPOSE:
+            row = main_col.row(align=True)
+            row.operator("openpose.activate_and_run", text="Stop OpenPose" if context.scene.openpose.state else "Start OpenPose")
+            row = main_col.row(align=True)
+            row.operator("openpose.reset_calibration", text="Reset calibration")
+            row.operator("openpose.save_userpref", text="Save calibration")
+
+        main_col.label(text='Animate from file')
         row = main_col.row(align=True)
-        layout.prop(context.object, "openpose_filepath")
+        row.prop(context.object, 'openpose_filepath')
         row = main_col.row(align=True)
-        row.operator("openpose.load_file", text="Load file")
+        row.operator('openpose.load_file', text='Load file')
 
 
 

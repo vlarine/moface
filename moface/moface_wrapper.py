@@ -44,17 +44,6 @@ class MoFaceWrapper:
         # Options
         self._name_prefix = "MoFace_"
         self._detection_threshold = 0.50  # Threshold for pose detection
-        self._nb_parts = 70  # number of elements detected (70 for the face and 25 for the body)
-
-        self._last_update: Optional[float] = None
-
-        self._op_last_update: Optional[float] = None
-        self._op = None
-        self._op_continue = False
-        self._op_thread: Optional[Thread] = None
-        self._op_lock = Lock()
-
-        self.update_from_data = False
 
 
     def start(self) -> bool:
@@ -130,8 +119,8 @@ class MoFaceWrapper:
 
     def normalize_pixels(self, array: np.array) -> np.array:
         # points are recentered from the center of the frame and normalized by the image length * scale_factor, a rotation is applied
-        rows, cols = 640, 640
-        scale_factor = 3.0
+        rows, cols = self.active_armature.keypoints_height, self.active_armature.keypoints_width
+        scale_factor = self.active_armature.scale_factor
         row_origin = floor(rows / 2)
         col_origin = floor(cols / 2)
         new_array = np.empty((0, 3))

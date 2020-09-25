@@ -31,6 +31,30 @@ class MoFacePropertiesPanel(bpy.types.Panel):
         subtype='FILE_PATH'
     )
 
+    bpy.types.Object.keypoints_width = bpy.props.IntProperty(
+        name="",
+        description="Keypoints width",
+        min=1,
+        max=2048,
+        default=640
+    )
+
+    bpy.types.Object.keypoints_height = bpy.props.IntProperty(
+        name="",
+        description="Keypoints height",
+        min=1,
+        max=2048,
+        default=640
+    )
+
+    bpy.types.Object.scale_factor = bpy.props.FloatProperty(
+        name="",
+        description="Scale factor",
+        min=0.01,
+        max=100.0,
+        default=3.0
+    )
+
 
     @classmethod
     def poll(cls, context) -> bool:
@@ -44,6 +68,15 @@ class MoFacePropertiesPanel(bpy.types.Panel):
         main_col.label(text='Animate from file')
         row = main_col.row(align=True)
         row.prop(context.object, 'keypoints_filepath')
+        row = main_col.row(align=True)
+        row.label(text='Keypoints width')
+        row.prop(context.object, 'keypoints_width')
+        row = main_col.row(align=True)
+        row.label(text='Keypoints height')
+        row.prop(context.object, 'keypoints_height')
+        row = main_col.row(align=True)
+        row.label(text='Scale factor')
+        row.prop(context.object, 'scale_factor')
         row = main_col.row(align=True)
         row.operator('moface.load_file', text='Load file')
 

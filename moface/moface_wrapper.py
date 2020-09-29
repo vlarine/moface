@@ -14,7 +14,6 @@
 import sys
 import bpy
 import bmesh
-import cv2
 import numpy as np
 import os
 

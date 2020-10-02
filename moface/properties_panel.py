@@ -36,7 +36,7 @@ class MoFacePropertiesPanel(bpy.types.Panel):
         description="Keypoints width",
         min=1,
         max=2048,
-        default=640
+        default=1280
     )
 
     bpy.types.Object.keypoints_height = bpy.props.IntProperty(
@@ -44,7 +44,7 @@ class MoFacePropertiesPanel(bpy.types.Panel):
         description="Keypoints height",
         min=1,
         max=2048,
-        default=640
+        default=1280
     )
 
     bpy.types.Object.scale_factor = bpy.props.FloatProperty(
@@ -52,7 +52,7 @@ class MoFacePropertiesPanel(bpy.types.Panel):
         description="Scale factor",
         min=0.01,
         max=100.0,
-        default=3.0
+        default=7.5
     )
 
 

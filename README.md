@@ -11,7 +11,7 @@ The main idea of keypoints usage is from [blender-addon-openpose](https://gitlab
 This addon can be installed in two ways:
 
 * Zip the [moface](./moface) folder. And install the zipfile like any other Blender addon.
-* Copy [moface](./moface) folder or make a symlink to the addon directory (for example `~/blender-2.83.4-linux64/2.83/scripts/addons/`).
+* Copy [moface](./moface) folder or make a symlink to the addon directory (for example `~/blender-2.83.4-linux64/2.83/scripts/addons/` or `/Applications/Blender.app/Contents/Resources/2.81/scripts/addons/`).
 
 ## Addon usage
 
@@ -43,6 +43,7 @@ See the [preprocess_keypoints.py](preprocess_keypoints.py) script.
 python3 preprocess_keypoints.py
 ```
 
+### Start animation from a keypoints file
 
-
+![Addon usage](./demo/usage.gif)
 

@@ -78,7 +78,7 @@ class MoFaceWrapper:
         arm_matrix_world = active_armature.matrix_world
 
         keypoint = []
-        free_bones = ["eye", "eyelid", "eyebrow", "chin", "lip", "upper_lip", "lower_lip", "neck", "shoulder", "nose", "nostril", "jawline", "elbow", "ear", "wrist", "hip", "knee", "ankle"]
+        free_bones = ["eye", "eyelid", "eyebrow", "chin", "lip", "upper_lip", "lower_lip", "nose", "nostril", "jawline"]
 
         def move_bone(name):
             world_co = arm_matrix_world @ active_armature.pose.bones[name].head

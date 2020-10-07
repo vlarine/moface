@@ -62,6 +62,10 @@ class MoFaceWrapper:
 
     def init_data(self, scene):
         self.active_armature = next((obj for obj in scene.objects if obj.type == "ARMATURE"), None)
+        self.initial_nose_apex_mat = self.active_armature.data.bones['nose_apex'].matrix.to_4x4().copy()
+        self.center_vector = None
+        self.init_co = {}
+        self.do_center = False
 
     @persistent
     def update(self, scene, *args, **kwargs) -> None:
@@ -74,16 +78,40 @@ class MoFaceWrapper:
 
         bl_keypoints = self.get_pose()
 
-        self.center_armature(active_armature)
         arm_matrix_world = active_armature.matrix_world
 
         keypoint = []
+        #free_bones = ["eye", "eyelid", "eyebrow", "chin", "lip", "upper_lip", "lower_lip", "neck", "shoulder", "nose", "nostril", "jawline", "elbow", "ear", "wrist", "hip", "knee", "ankle"]
         free_bones = ["eye", "eyelid", "eyebrow", "chin", "lip", "upper_lip", "lower_lip", "nose", "nostril", "jawline"]
+        #free_bones = ["lip", "upper_lip", "lower_lip"]
+
+        if self.center_vector is None:
+            # Initialise the center_vector by the nose_apex coorinates
+            # at the firs frame
+            world_co = arm_matrix_world @ active_armature.pose.bones['nose_apex'].head
+            self.center_vector = Vector()
+            self.center_vector.x = world_co.x - bl_keypoints['nose_apex'].x
+            self.center_vector.z = world_co.z - bl_keypoints['nose_apex'].z
+
+            for bone in active_armature.pose.bones:
+                if bone.name in bl_keypoints:
+                    world_co = arm_matrix_world @ bone.head
+                    self.init_co[bone.name] = {'x': world_co.x - self.center_vector.x, 'z': world_co.z - self.center_vector.z}
 
         def move_bone(name):
             world_co = arm_matrix_world @ active_armature.pose.bones[name].head
-            world_co.x = bl_keypoints[name].x
-            world_co.z = bl_keypoints[name].z
+
+            if any(x in name for x in free_bones):
+                world_co.x = bl_keypoints[name].x + self.center_vector.x
+                world_co.z = bl_keypoints[name].z + self.center_vector.z
+            else:
+                world_co.x = self.init_co[name]['x'] + self.center_vector.x + bl_keypoints['nose_apex'].x - self.init_co['nose_apex']['x']
+                world_co.z = self.init_co[name]['z'] + self.center_vector.z + bl_keypoints['nose_apex'].z - self.init_co['nose_apex']['z']
+
+            if self.do_center:
+                world_co.x += self.init_co['nose_apex']['x'] - bl_keypoints['nose_apex'].x
+                world_co.z += self.init_co['nose_apex']['z'] - bl_keypoints['nose_apex'].z
+
             local_co = arm_matrix_world.inverted() @ world_co
             new_mat = active_armature.data.bones[name].matrix.to_4x4().copy()
             new_mat[0][3] = local_co.x
@@ -97,21 +125,13 @@ class MoFaceWrapper:
         # move the free bones
         for bone in active_armature.pose.bones:
             # check if it is a "movable bone"
-            if any(x in bone.name for x in free_bones) and bone.name in bl_keypoints and bone.name != "nose_apex":
+            if bone.name in bl_keypoints and bone.name != "nose_apex":
                 keypoint = bl_keypoints[bone.name]
                 # update the bone location only if the accuracy is sufficiently high
                 if keypoint.accuracy > self._detection_threshold:
                     move_bone(bone.name)
 
         return {'FINISHED'}
-
-    # Centers the armature at the origin of the world
-    def center_armature(self, armature: bpy.types.bpy_struct) -> None:
-        armature.location = Vector((0, 0, 0))
-        return
-
-    def initial_position(self, armature: bpy.types.bpy_struct) -> Dict[str, Vector]:
-        return {bone.name: bone.head for bone in armature.pose.bones}
 
     def compute_vector(self, point1: np.array, point2: np.array) -> Vector:
         return Vector((point2[0] - point1[0], point2[1] - point1[1], point2[2] - point1[2]))

@@ -27,7 +27,7 @@ For example:
 ffmpeg -i ../data/moface/video.mp4 ../data/moface/frames/frame%05d.png
 ```
 
-#### 2. Make keypooints files for each frame
+#### 2. Make keypoints files for each frame
 
 Example of keypoints extracting you can see in the [run_openpose.py](run_openpose.py) script. For more information about keypoints you can see in the [OpenPose Project](https://github.com/CMU-Perceptual-Computing-Lab/openpose) documentation.
 
@@ -47,3 +47,10 @@ python3 preprocess_keypoints.py
 
 ![Addon usage](./demo/usage.gif)
 
+#### Render animation from the command line
+
+If you have a Blender scene file you can rendrer animation the comand line. There is an example of render script: [render.py](render.py). And you can run it in the command line:
+
+```
+~/blender-2.83.4-linux64/blender ./assets/rigged_face.blend --background --python render.py -- --save_path ./debug/ --keypoints_filepath ./assets/op_keypoints.tsv --render_engine eevee  --render
+```
